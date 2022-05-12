@@ -48,12 +48,14 @@ fn main() {
             height: 720.0,
             ..Default::default()
         })
+        .insert_resource(ClearColor(Color::BLACK))
         .add_plugins(DefaultPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(CubesPlugin)
         .add_startup_system(setup)
         .add_system(camera_controller)
+        // .add_system(dynamic_cubes)
         .run();
 }
 
@@ -95,36 +97,176 @@ struct Cubes {
     data: Vec<Cube>,
     extracted: bool,
 }
+fn dynamic_cubes(mut q: Query<&mut Cubes>) {
+    for mut cubes in q.iter_mut() {
+        cubes.extracted = false;
+        for cube in &mut cubes.data {
+            cube.center += Vec3::new(1.0, 0.01, 0.01);
+        }
+    }
+}
 
-fn setup(mut commands: Commands) {
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        ..default()
+    });
+
     let mut cubes = Cubes::default();
     let mut n_cubes = std::env::args()
         .nth(1)
         .and_then(|arg| arg.parse::<usize>().ok())
-        .unwrap_or(1_000_000);
+        .unwrap_or(700);
     let dim = (n_cubes as f32).sqrt().ceil() as usize;
     n_cubes = (dim * dim) as usize;
     info!("Generating {} cubes", n_cubes);
     let sin_scale = std::f32::consts::TAU / 50.0;
-    let y_scale = 10.0;
+    let y_scale = 100.0;
     // dbg!(half_dim);
-    for z in 0..dim {
-        for x in 0..dim {
-            let (x, z) = (x as f32, z as f32);
-            let y = (x * sin_scale).sin() * (z * sin_scale).cos();
+    // for z in 0..dim {
+    //     for x in 0..dim {
+    //         let (x, z) = (x as f32, z as f32);
+    //         let y = (x * sin_scale).sin() * (z * sin_scale).cos();
+
+    //         cubes.data.push(Cube {
+    //             color: Color::rgb(x / dim as f32, y, z / dim as f32),
+    //             center: Vec3::new(x, y_scale * y, z),
+    //             half_extents: 0.5 * Vec3::ONE,
+    //         });
+    //     }
+    // }
+
+    let mut rng = rand::thread_rng();
+    use rand::Rng;
+    let mut counter = 0.0;
+
+    use noise::*;
+
+    // let fbm = Terrace::new();
+    let cyl = RidgedMulti::new();
+    let w = Worley::new();
+    let billow = Billow::new();
+    let fbm = Fbm::new();
+    let super_simplex = SuperSimplex::new();
+    let add: Power<[f64; 3]> = Power::new(&billow, &fbm);
+    // let fbm = Turbulence::new(fbm);
+    // let fbm = Turbulence::new(fbm);
+    // let fbm = Turbulence::new(fbm);
+    // let fbm = Turbulence::new(fbm);
+    // let fbm = Turbulence::new(fbm);
+
+    let golden = 3.14 * (3. - 5.0_f32.sqrt());
+    for p in 0..n_cubes {
+        let y = 1.0 - (p as f32 / (n_cubes as f32 - 1.0)) * 2.0;
+
+        let r = (1.0 - y * y).sqrt();
+
+        let theta = p as f32 * golden;
+
+        let x = theta.cos() * r;
+        let z = theta.sin() * r;
+        let mut pos = Vec3::new(x, y, z);
+        // println!("{:?}", pos);
+        pos.x += rng.gen_range(-0.01..0.01);
+        pos.y += rng.gen_range(-0.01..0.01);
+        pos.z += rng.gen_range(-0.01..0.01);
+        let dist = rng.gen_range(70.0..10000.);
+        let size = rng.gen_range(10.0..20.0) ;
+        // let size = rng.gen_range(10.0..20.0);
+
+        let val = add.get([pos.x as f64, pos.y as f64, pos.z as f64]);
+        let val2 = add.get([pos.x as f64, pos.y as f64, pos.z as f64]);
+        let color = if val > 0.0 && val < 0.4 {
+            Color::rgb(
+                255. / dist + rng.gen_range(0.05..0.1) + 0.4,
+                255. / dist + rng.gen_range(0.05..0.07),
+                255. / dist + rng.gen_range(0.05..0.07),
+            )
+        } else if val2 > 0.0 {
+            Color::rgb(
+                255. / dist + rng.gen_range(0.05..0.1) + 0.1,
+                255. / dist + rng.gen_range(0.05..0.07) + 0.1,
+                255. / dist + rng.gen_range(0.05..0.07) + 0.1,
+            )
+        } else if val > 0.4 && val < 0.6 {
+            Color::rgb(
+                255. / dist + rng.gen_range(0.05..0.1),
+                255. / dist + rng.gen_range(0.05..0.07),
+                255. / dist + rng.gen_range(0.05..0.07),
+            )
+        } else if val2 < 0.0 {
+            Color::rgb(
+                255. / dist + rng.gen_range(0.05..0.07),
+                255. / dist + rng.gen_range(0.05..0.1),
+                255. / dist + rng.gen_range(0.05..0.07),
+            )
+        } else {
+            Color::rgb(
+                255. / dist + rng.gen_range(0.05..0.07),
+                255. / dist + rng.gen_range(0.05..0.1),
+                255. / dist + rng.gen_range(0.05..0.1),
+            )
+        };
+        counter += 1.0;
+        if val.fract().abs() > 0.25 {
             cubes.data.push(Cube {
-                color: Color::rgb(x / dim as f32, y, z / dim as f32),
-                center: Vec3::new(x, y_scale * y, z),
-                half_extents: 0.5 * Vec3::ONE,
+                color,
+                center: pos.normalize() * dist,
+                half_extents: Vec3::ONE * size,
+            });
+        } else if counter % 6.0 == 0.0 && val.fract() < 0.0 {
+            cubes.data.push(Cube {
+                color,
+                center: pos.normalize() * dist,
+                half_extents: Vec3::ONE * size,
+            });
+        } else if counter % 3.0 == 0.0 && val.fract() < -0.5 {
+            cubes.data.push(Cube {
+                color,
+                center: pos.normalize() * dist,
+                half_extents: Vec3::ONE * size,
+            });
+        } else {
+            cubes.data.push(Cube {
+                color: Color::GOLD,
+                center: pos.normalize() * dist,
+                half_extents: Vec3::ONE * size,
             });
         }
     }
+    // cubes.data.push(Cube {
+    //     color: Color::GOLD,
+    //     center: Vec3::new(0.0, 0.0, -100.0),
+    //     half_extents: Vec3::ONE * 20.,
+    // });
+    // cubes.data.push(Cube {
+    //     color: Color::GOLD,
+    //     center: Vec3::new(50.0, 0.0, -100.0),
+    //     half_extents: Vec3::ONE * 20.,
+    // });
+    // cubes.data.push(Cube {
+    //     color: Color::GOLD,
+    //     center: Vec3::new(-50.0, 0.0, -100.0),
+    //     half_extents: Vec3::ONE * 20.,
+    // });
+    // cubes.data.push(Cube {
+    //     color: Color::GOLD,
+    //     center: Vec3::new(0.0, 50.0, -100.0),
+    //     half_extents: Vec3::ONE * 20.,
+    // });
+
     commands.spawn_bundle((cubes,));
 
     commands
         .spawn_bundle(PerspectiveCameraBundle {
-            transform: Transform::from_translation(100.0 * Vec3::new(-1.0, 1.0, -1.0))
-                .looking_at(0.5 * Vec3::new(dim as f32, 0.0, dim as f32), Vec3::Y),
+            // transform: Transform::from_translation(100.0 * Vec3::new(-1.0, 1.0, -1.0))
+            //     .looking_at(0.5 * Vec3::new(dim as f32, 0.0, dim as f32), Vec3::Y),
             ..default()
         })
         .insert(CameraController::default());
@@ -204,13 +346,21 @@ const NUM_CUBE_VERTICES: usize = 8;
 fn generate_index_buffer_data(num_cubes: usize) -> Vec<u32> {
     #[rustfmt::skip]
     let cube_indices = [
-        0u32, 2, 1, 2, 3, 1,
-        5, 4, 1, 1, 4, 0,
-        0, 4, 6, 0, 6, 2,
-        6, 5, 7, 6, 4, 5,
-        2, 6, 3, 6, 7, 3,
-        7, 1, 3, 7, 5, 1,
+        1u32, 5, 7, 3, 1, 7,
+        3, 7, 6, 3, 6, 2,
+        5, 4, 6, 7, 5, 6,
+        2, 6, 0, 6, 4, 0,
+        0, 4, 1, 1, 4, 5,
+        1, 3, 2, 1, 2, 0,
     ];
+    // let cube_indices = [
+    //     0u32, 2, 1, 2, 3, 1,
+    //     5, 4, 1, 1, 4, 0,
+    //     0, 4, 6, 0, 6, 2,
+    //     6, 5, 7, 6, 4, 5,
+    //     2, 6, 3, 6, 7, 3,
+    //     7, 1, 3, 7, 5, 1,
+    // ];
 
     let num_indices = num_cubes * NUM_CUBE_INDICES;
 
@@ -233,6 +383,8 @@ fn prepare_cubes(
         if cubes.extracted {
             continue;
         }
+        // gpu_cubes.instances.clear();
+
         for cube in cubes.data.iter() {
             gpu_cubes.instances.push(GpuCube::from(cube));
         }
@@ -433,6 +585,7 @@ impl Plugin for CubesPlugin {
                 CubesPassNode::IN_VIEW,
             )
             .unwrap();
+        println!("{:#?}", graph);
     }
 }
 
@@ -501,7 +654,7 @@ impl FromWorld for CubesPipeline {
                 entry_point: "fragment".into(),
                 targets: vec![ColorTargetState {
                     format: TextureFormat::bevy_default(),
-                    blend: Some(BlendState::REPLACE),
+                    blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 }],
             }),
@@ -682,22 +835,22 @@ fn camera_controller(
         // Handle key input
         let mut axis_input = Vec3::ZERO;
         if key_input.pressed(options.key_forward) {
-            axis_input.z += 1.0;
+            axis_input.z += 100000.0;
         }
         if key_input.pressed(options.key_back) {
-            axis_input.z -= 1.0;
+            axis_input.z -= 1000.0;
         }
         if key_input.pressed(options.key_right) {
-            axis_input.x += 1.0;
+            axis_input.x += 1000.0;
         }
         if key_input.pressed(options.key_left) {
-            axis_input.x -= 1.0;
+            axis_input.x -= 1000.0;
         }
         if key_input.pressed(options.key_up) {
-            axis_input.y += 1.0;
+            axis_input.y += 1000.0;
         }
         if key_input.pressed(options.key_down) {
-            axis_input.y -= 1.0;
+            axis_input.y -= 1000.0;
         }
 
         // Apply movement update

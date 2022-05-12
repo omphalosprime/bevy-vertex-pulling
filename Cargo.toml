@@ -12,6 +12,8 @@ trace_tracy = ["bevy/trace_tracy"]
 
 [dependencies]
 bevy = { version = "0.8.0-dev", git = "https://github.com/bevyengine/bevy", branch = "main" }
+rand = "0.8.5"
+noise = { git = "https://github.com/Razaekel/noise-rs.git ", branch = "main" }
 
 [dev-dependencies]
 bytemuck = "1.9.1"

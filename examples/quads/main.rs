@@ -48,6 +48,7 @@ fn main() {
             height: 720.0,
             ..Default::default()
         })
+        .insert_resource(ClearColor(Color::BLACK))
         .add_plugins(DefaultPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin)
         .add_plugin(LogDiagnosticsPlugin::default())
@@ -89,6 +90,12 @@ struct Quads {
 }
 
 fn setup(mut commands: Commands) {
+    use noise::{Cylinders, Fbm, NoiseFn};
+
+    let fbm = Fbm::new();
+
+    let mut rng = rand::thread_rng();
+    use rand::Rng;
     commands
         .spawn_bundle(PerspectiveCameraBundle {
             transform: Transform::from_translation(50.0 * Vec3::Z).looking_at(Vec3::ZERO, Vec3::Y),
@@ -100,14 +107,88 @@ fn setup(mut commands: Commands) {
     let mut rng = rand::thread_rng();
     let min = -10.0 * Vec3::ONE;
     let max = 10.0 * Vec3::ONE;
-    let n_quads = std::env::args()
-        .nth(1)
-        .and_then(|arg| arg.parse::<usize>().ok())
-        .unwrap_or(1_000_000);
-    info!("Generating {} quads", n_quads);
-    for _ in 0..n_quads {
-        quads.data.push(Quad::random(&mut rng, min, max));
-    }
+    // let n_quads = std::env::args()
+    //     .nth(1)
+    //     .and_then(|arg| arg.parse::<usize>().ok())
+    //     .unwrap_or(500_000);
+    // info!("Generating {} quads", n_quads);
+    // for _ in 0..n_quads {
+    //     quads.data.push(Quad::random(&mut rng, min, max));
+    // }
+    quads.data.push(Quad {
+        color: Color::GOLD,
+        center: Vec3::new(0.0, 0.0, -20.0),
+        half_extents: Vec3::ONE * 5.,
+    });
+    quads.data.push(Quad {
+        color: Color::GREEN,
+        center: Vec3::new(50.0, 0.0, -20.0),
+        half_extents: Vec3::ONE * 5.,
+    });
+    quads.data.push(Quad {
+        color: Color::YELLOW_GREEN,
+        center: Vec3::new(-50.0, 0.0, -20.0),
+        half_extents: Vec3::ONE * 5.,
+    });
+    quads.data.push(Quad {
+        color: Color::WHITE,
+        center: Vec3::new(0.0, 50.0, -20.0),
+        half_extents: Vec3::ONE * 5.,
+    });
+    quads.data.push(Quad {
+        color: Color::PURPLE,
+        center: Vec3::new(-50.0, 50.0, -20.0),
+        half_extents: Vec3::ONE * 5.,
+    });
+    quads.data.push(Quad {
+        color: Color::BLUE,
+        center: Vec3::new(50.0, 50.0, -20.0),
+        half_extents: Vec3::ONE * 5.,
+    });
+
+    // let golden = 3.14 * (3. - 5.0_f32.sqrt());
+    // for p in 0..n_quads {
+    //     let y = 1.0 - (p as f32 / (n_quads as f32 - 1.0)) * 2.0;
+    //     // println!("y {:?}", y);
+
+    //     let r = (1.0 - y * y).sqrt();
+    //     // println!("r {:?}", r);
+
+    //     let theta = p as f32 * golden;
+    //     // println!("t {:?}", theta);
+
+    //     let x = theta.cos() * r;
+    //     let z = theta.sin() * r;
+    //     let mut pos = Vec3::new(x, y, z);
+    //     // println!("{:?}", pos);
+    //     // pos.x += rng.gen_range(-0.01..0.01);
+    //     // pos.y += rng.gen_range(-0.01..0.01);
+    //     // pos.z += rng.gen_range(-0.01..0.01);
+    //     let dist = rng.gen_range(700.0..1000.);
+    //     let size = rng.gen_range(30.0..50.0);
+    //     // let pos = Vec3::new(
+    //     //     rng.gen_range(-1.0..1.0),
+    //     //     rng.gen_range(-1.0..1.0),
+    //     //     rng.gen_range(-1.0..1.0),
+    //     // )
+    //     // .normalize()
+    //     //     * dist;
+    //     let val = fbm.get([pos.x as f64, pos.y as f64, pos.z as f64]);
+    //     if val > 0.0 {
+    //         // println!("{:?}", val);
+
+    //         quads.data.push(Quad {
+    //             color: Color::rgb(
+    //                 255. / dist + rng.gen_range(0.05..0.1),
+    //                 255. / dist + rng.gen_range(0.05..0.07),
+    //                 255. / dist + rng.gen_range(0.05..0.07),
+    //             ),
+    //             center: pos.normalize() * dist,
+    //             half_extents: Vec3::ONE * size,
+    //         });
+    //     }
+    // }
+
     commands.spawn_bundle((quads,));
 }
 
@@ -189,14 +270,24 @@ fn prepare_quads(
         }
         gpu_quads.index_count = gpu_quads.instances.len() as u32 * 6;
         let mut indices = Vec::with_capacity(gpu_quads.index_count as usize);
-        for i in 0..gpu_quads.instances.len() {
-            let base = (i * 6) as u32;
-            indices.push(base + 2);
-            indices.push(base);
-            indices.push(base + 1);
-            indices.push(base + 1);
-            indices.push(base + 3);
-            indices.push(base + 2);
+        for i in 0..(gpu_quads.instances.len()) {
+            if i % 2 == 0 {
+                let base = (i * 6) as u32;
+                indices.push(base + 2);
+                indices.push(base);
+                indices.push(base + 1);
+                indices.push(base + 1);
+                indices.push(base + 3);
+                indices.push(base + 2);
+            } else {
+                let base = (i * 6) as u32;
+                indices.push(base + 1);
+                indices.push(base);
+                indices.push(base + 2);
+                indices.push(base + 2);
+                indices.push(base + 3);
+                indices.push(base + 1);
+            }
         }
         gpu_quads.index_buffer = Some(render_device.create_buffer_with_data(
             &BufferInitDescriptor {
@@ -609,8 +700,8 @@ impl Default for CameraController {
             key_down: KeyCode::Q,
             key_run: KeyCode::LShift,
             key_enable_mouse: MouseButton::Left,
-            walk_speed: 2.0,
-            run_speed: 6.0,
+            walk_speed: 20.0,
+            run_speed: 60.0,
             friction: 0.5,
             pitch: 0.0,
             yaw: 0.0,
@@ -642,7 +733,7 @@ fn camera_controller(
         // Handle key input
         let mut axis_input = Vec3::ZERO;
         if key_input.pressed(options.key_forward) {
-            axis_input.z += 1.0;
+            axis_input.z += 10.0;
         }
         if key_input.pressed(options.key_back) {
             axis_input.z -= 1.0;

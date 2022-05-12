@@ -20,6 +20,7 @@ struct Quads {
     data: array<Quad>;
 };
 
+
 [[group(0), binding(0)]]
 var<uniform> view: View;
 
@@ -46,7 +47,7 @@ fn vertex([[builtin(vertex_index)]] vertex_index: u32) -> VertexOutput {
     let relative_pos_unit = out.uv * 2.0 - 1.0;
     let relative_pos = vec3<f32>(relative_pos_unit * quad.half_extents.xy, 0.0);
 
-    out.world_position = vec4<f32>(quad.center.xyz + relative_pos, 1.0);
+    out.world_position = vec4<f32>(quad.center.xyz + relative_pos , 1.0 );
     out.world_normal = vec3<f32>(0.0, 0.0, 1.0);
 
     out.clip_position = view.view_proj * out.world_position;
